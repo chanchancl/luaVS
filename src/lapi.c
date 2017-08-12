@@ -56,7 +56,7 @@ const char lua_ident[] =
 #define api_checkstackindex(l, i, o)  \
 	api_check(l, isstackindex(i, o), "index not in the stack")
 
-
+// 将 State 中 index的元素返回
 static TValue *index2addr (lua_State *L, int idx) {
   CallInfo *ci = L->ci;
   if (idx > 0) {
@@ -168,7 +168,8 @@ LUA_API int lua_gettop (lua_State *L) {
   return cast_int(L->top - (L->ci->func + 1));
 }
 
-
+// 设置栈顶为指定的值，若 idx 为 0 ，则相当于清空栈，
+// 若idx 为负数，则相当于删除栈顶的 若干个元素
 LUA_API void lua_settop (lua_State *L, int idx) {
   StkId func = L->ci->func;
   lua_lock(L);
@@ -236,7 +237,11 @@ LUA_API void lua_copy (lua_State *L, int fromidx, int toidx) {
 
 LUA_API void lua_pushvalue (lua_State *L, int idx) {
   lua_lock(L);
+
+  // L->top = L idx的元素
   setobj2s(L, L->top, index2addr(L, idx));
+
+  // 增加栈顶
   api_incr_top(L);
   lua_unlock(L);
 }
@@ -528,13 +533,14 @@ LUA_API const char *lua_pushfstring (lua_State *L, const char *fmt, ...) {
   return ret;
 }
 
-
+// 若 n == 0 则压入普通函数
+// 否则压入闭包
 LUA_API void lua_pushcclosure (lua_State *L, lua_CFunction fn, int n) {
   lua_lock(L);
-  if (n == 0) {
+  if (n == 0) { // 压入函数
     setfvalue(L->top, fn);
   }
-  else {
+  else { // 压入 Closure  估计是闭包
     CClosure *cl;
     api_checknelems(L, n);
     api_check(L, n <= MAXUPVAL, "upvalue index too large");
@@ -684,11 +690,14 @@ LUA_API void lua_createtable (lua_State *L, int narray, int nrec) {
   Table *t;
   lua_lock(L);
   luaC_checkGC(L);
+
+  // 创建一个空 table
   t = luaH_new(L);
+  // 把刚创建的table 放入栈顶
   sethvalue(L, L->top, t);
   api_incr_top(L);
   if (narray > 0 || nrec > 0)
-    luaH_resize(L, t, narray, nrec);
+    luaH_resize(L, t, narray, nrec); // 如果有大小的要求，则进行调整
   lua_unlock(L);
 }
 
@@ -962,6 +971,7 @@ LUA_API int lua_pcallk (lua_State *L, int nargs, int nresults, int errfunc,
     api_checkstackindex(L, errfunc, o);
     func = savestack(L, o);
   }
+  // 获得函数地址
   c.func = L->top - (nargs+1);  /* function to be called */
   if (k == NULL || L->nny > 0) {  /* no continuation or no yieldable? */
     c.nresults = nresults;  /* do a 'conventional' protected call */

@@ -85,12 +85,13 @@ void *luaM_realloc_ (lua_State *L, void *block, size_t osize, size_t nsize) {
 #endif
   newblock = (*g->frealloc)(g->ud, block, osize, nsize);
   if (newblock == NULL && nsize > 0) {
+	// 分配内存失败，尝试gc一下 再分配
     lua_assert(nsize > realosize);  /* cannot fail when shrinking a block */
     if (g->version) {  /* is state fully built? */
       luaC_fullgc(L, 1);  /* try to free some memory... */
       newblock = (*g->frealloc)(g->ud, block, osize, nsize);  /* try again */
     }
-    if (newblock == NULL)
+    if (newblock == NULL) // 还是失败，那就 go die 抛出异常
       luaD_throw(L, LUA_ERRMEM);
   }
   lua_assert((nsize == 0) == (newblock == NULL));

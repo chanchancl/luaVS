@@ -171,24 +171,24 @@ static int pmain(lua_State* L)
  if (!lua_checkstack(L,argc)) fatal("too many input files");
  for (i=0; i<argc; i++)
  {
-  const char* filename=IS("-") ? NULL : argv[i];
-  if (luaL_loadfile(L,filename)!=LUA_OK) fatal(lua_tostring(L,-1));
+    const char* filename=IS("-") ? NULL : argv[i];
+    if (luaL_loadfile(L,filename)!=LUA_OK) fatal(lua_tostring(L,-1));
  }
  f=combine(L,argc);
  if (listing) luaU_print(f,listing>1);
  if (dumping)
  {
-  FILE* D= (output==NULL) ? stdout : fopen(output,"wb");
-  if (D==NULL) cannot("open");
-  lua_lock(L);
-  luaU_dump(L,f,writer,D,stripping);
-  lua_unlock(L);
-  if (ferror(D)) cannot("write");
-  if (fclose(D)) cannot("close");
+    FILE* D= (output==NULL) ? stdout : fopen(output,"wb");
+    if (D==NULL) cannot("open");
+    lua_lock(L);
+    luaU_dump(L,f,writer,D,stripping);
+    lua_unlock(L);
+    if (ferror(D)) cannot("write");
+    if (fclose(D)) cannot("close");
  }
  return 0;
 }
-
+/*
 int main(int argc, char* argv[])
 {
  lua_State* L;
@@ -203,7 +203,7 @@ int main(int argc, char* argv[])
  if (lua_pcall(L,2,0,0)!=LUA_OK) fatal(lua_tostring(L,-1));
  lua_close(L);
  return EXIT_SUCCESS;
-}
+}*/
 
 /*
 ** $Id: luac.c,v 1.75 2015/03/12 01:58:27 lhf Exp $

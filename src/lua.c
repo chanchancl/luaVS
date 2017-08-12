@@ -543,20 +543,25 @@ static int handle_luainit (lua_State *L) {
     return dostring(L, init, name);
 }
 
-
+#include "lstate.h"
 /*
 ** Main body of stand-alone interpreter (to be called in protected mode).
 ** Reads the options and handles them all.
 */
 static int pmain (lua_State *L) {
+  // 从栈中 弹出参数
   int argc = (int)lua_tointeger(L, 1);
   char **argv = (char **)lua_touserdata(L, 2);
   int script;
+
+  int a = sizeof(union GCUnion);  // 120 bytes
+  int b = sizeof(struct GCObject); //  8 bytes
+  // 参数检测
   int args = collectargs(argv, &script);
   luaL_checkversion(L);  /* check that interpreter has correct version */
   if (argv[0] && argv[0][0]) progname = argv[0];
   if (args == has_error) {  /* bad arg? */
-    print_usage(argv[script]);  /* 'script' has index of bad arg. */
+    print_usage(argv[script]);  /* 'script' has index of bad arg. */	
     return 0;
   }
   if (args & has_v)  /* option '-v'? */
@@ -565,6 +570,8 @@ static int pmain (lua_State *L) {
     lua_pushboolean(L, 1);  /* signal for libraries to ignore env. vars. */
     lua_setfield(L, LUA_REGISTRYINDEX, "LUA_NOENV");
   }
+
+  // 将标准库引入全局 State
   luaL_openlibs(L);  /* open standard libraries */
   createargtable(L, argv, argc, script);  /* create table 'arg' */
   if (!(args & has_E)) {  /* no option '-E'? */
@@ -576,6 +583,8 @@ static int pmain (lua_State *L) {
   if (script < argc &&  /* execute main script (if there is one) */
       handle_script(L, argv + script) != LUA_OK)
     return 0;
+
+  // 交互模式
   if (args & has_i)  /* -i option? */
     doREPL(L);  /* do read-eval-print loop */
   else if (script == argc && !(args & (has_e | has_v))) {  /* no arguments? */
@@ -597,13 +606,18 @@ int main (int argc, char **argv) {
     l_message(argv[0], "cannot create state: not enough memory");
     return EXIT_FAILURE;
   }
+  // 准备调用 pmain 函数，依次压入 函数地址，各参数
   lua_pushcfunction(L, &pmain);  /* to call 'pmain' in protected mode */
   lua_pushinteger(L, argc);  /* 1st argument */
   lua_pushlightuserdata(L, argv); /* 2nd argument */
+  // 调用函数     state, 参数个数,返回值个数，异常回调函数
   status = lua_pcall(L, 2, 1, 0);  /* do the call */
+  // 获得调用结果，并报告
   result = lua_toboolean(L, -1);  /* get result */
   report(L, status);
+  // 关闭lua
   lua_close(L);
+  // 退出
   return (result && status == LUA_OK) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 

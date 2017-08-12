@@ -914,6 +914,7 @@ LUALIB_API void luaL_setfuncs (lua_State *L, const luaL_Reg *l, int nup) {
     int i;
     for (i = 0; i < nup; i++)  /* copy upvalues to the top */
       lua_pushvalue(L, -nup);
+	// 在 luaopen_base 中nup==0，所以压入普通函数
     lua_pushcclosure(L, l->func, nup);  /* closure with those upvalues */
     lua_setfield(L, -(nup + 2), l->name);
   }
@@ -950,9 +951,13 @@ LUALIB_API void luaL_requiref (lua_State *L, const char *modname,
   luaL_getsubtable(L, LUA_REGISTRYINDEX, "_LOADED");
   lua_getfield(L, -1, modname);  /* _LOADED[modname] */
   if (!lua_toboolean(L, -1)) {  /* package not already loaded? */
+	// 没有加载这个 lib
     lua_pop(L, 1);  /* remove field */
+	// 函数 入栈
     lua_pushcfunction(L, openf);
+	// modname 参数
     lua_pushstring(L, modname);  /* argument to open function */
+	// 调用函数
     lua_call(L, 1, 1);  /* call 'openf' to open module */
     lua_pushvalue(L, -1);  /* make copy of module (call result) */
     lua_setfield(L, -3, modname);  /* _LOADED[modname] = module */

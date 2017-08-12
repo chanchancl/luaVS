@@ -9,12 +9,14 @@
 
 #include "lobject.h"
 
-
+// 获得 table t 中 下表为 i的节点
 #define gnode(t,i)	(&(t)->node[i])
+// 获得 node n 中的值
 #define gval(n)		(&(n)->i_val)
+// 获得 node n 中的下一个 ....
 #define gnext(n)	((n)->i_key.nk.next)
 
-
+// 获得 node n 的key值
 /* 'const' to avoid wrong writings that can mess up field 'next' */ 
 #define gkey(n)		cast(const TValue*, (&(n)->i_key.tvk))
 

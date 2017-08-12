@@ -483,9 +483,10 @@ static const luaL_Reg base_funcs[] = {
   {NULL, NULL}
 };
 
-
+// for _G
 LUAMOD_API int luaopen_base (lua_State *L) {
   /* open lib into global table */
+  // 将全局表入栈，因为要把库放到全局表里面
   lua_pushglobaltable(L);
   luaL_setfuncs(L, base_funcs, 0);
   /* set global _G */

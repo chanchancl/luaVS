@@ -70,7 +70,10 @@ static void save (LexState *ls, int c) {
 void luaX_init (lua_State *L) {
   int i;
   TString *e = luaS_newliteral(L, LUA_ENV);  /* create env name */
+
+  // 让gc不回收该对象
   luaC_fix(L, obj2gco(e));  /* never collect this name */
+  // 初始化 token字符串，并持久化
   for (i=0; i<NUM_RESERVED; i++) {
     TString *ts = luaS_new(L, luaX_tokens[i]);
     luaC_fix(L, obj2gco(ts));  /* reserved words are never collected */

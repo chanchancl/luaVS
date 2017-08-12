@@ -117,6 +117,8 @@ static int l_hashfloat (lua_Number n) {
 ** of its hash value)
 */
 static Node *mainposition (const Table *t, const TValue *key) {
+  // 大概就是根据key的类型，获得对应的 hash值
+  // 然后从 table中找出该hash值的位置
   switch (ttype(key)) {
     case LUA_TNUMINT:
       return hashint(t, ivalue(key));
@@ -256,6 +258,7 @@ static int countint (const TValue *key, unsigned int *nums) {
 ** number of keys that will go into corresponding slice and return
 ** total number of non-nil keys.
 */
+// 统计 array 中 key的数量，因为 table中array是可以出现间隔的，
 static unsigned int numusearray (const Table *t, unsigned int *nums) {
   int lg;
   unsigned int ttlg;  /* 2^lg */
@@ -286,6 +289,7 @@ static int numusehash (const Table *t, unsigned int *nums, unsigned int *pna) {
   int totaluse = 0;  /* total number of elements */
   int ause = 0;  /* elements added to 'nums' (can go to array part) */
   int i = sizenode(t);
+  // 遍历table中所有的 node 槽，如果不是nil，就记录
   while (i--) {
     Node *n = &t->node[i];
     if (!ttisnil(gval(n))) {
@@ -300,9 +304,14 @@ static int numusehash (const Table *t, unsigned int *nums, unsigned int *pna) {
 
 static void setarrayvector (lua_State *L, Table *t, unsigned int size) {
   unsigned int i;
+  // 重新分配内存
   luaM_reallocvector(L, t->array, t->sizearray, size, TValue);
+	
+  // 对于多出来的部分，全都设置为 nil
   for (i=t->sizearray; i<size; i++)
      setnilvalue(&t->array[i]);
+
+  // 设置新大小
   t->sizearray = size;
 }
 
@@ -310,40 +319,53 @@ static void setarrayvector (lua_State *L, Table *t, unsigned int size) {
 static void setnodevector (lua_State *L, Table *t, unsigned int size) {
   int lsize;
   if (size == 0) {  /* no elements to hash part? */
+	// 没有 node
     t->node = cast(Node *, dummynode);  /* use common 'dummynode' */
     lsize = 0;
   }
   else {
     int i;
     lsize = luaO_ceillog2(size);
-    if (lsize > MAXHBITS)
+    if (lsize > MAXHBITS) // MAXHBITS == 30
       luaG_runerror(L, "table overflow");
     size = twoto(lsize);
+	// 分配内存
     t->node = luaM_newvector(L, size, Node);
     for (i = 0; i < (int)size; i++) {
       Node *n = gnode(t, i);
-      gnext(n) = 0;
+      // 
+	  gnext(n) = 0;
       setnilvalue(wgkey(n));
       setnilvalue(gval(n));
     }
   }
+  // 设置size
   t->lsizenode = cast_byte(lsize);
+  // 设置 lastfree  ....
   t->lastfree = gnode(t, size);  /* all positions are free */
 }
 
 
+// nasize应该是 array大小，nhsize 是node list 的大小
 void luaH_resize (lua_State *L, Table *t, unsigned int nasize,
                                           unsigned int nhsize) {
   unsigned int i;
   int j;
+  // 保存原来的信息
   unsigned int oldasize = t->sizearray;
   int oldhsize = t->lsizenode;
   Node *nold = t->node;  /* save old hash ... */
+
+  // 改变 array 大小
   if (nasize > oldasize)  /* array part must grow? */
     setarrayvector(L, t, nasize);
+  // 改变 node列表大小
   /* create new hash part with appropriate size */
   setnodevector(L, t, nhsize);
+
+  
   if (nasize < oldasize) {  /* array part must shrink? */
+	// 减小 array 容量
     t->sizearray = nasize;
     /* re-insert elements from vanishing slice */
     for (i=nasize; i<oldasize; i++) {
@@ -381,9 +403,13 @@ static void rehash (lua_State *L, Table *t, const TValue *ek) {
   unsigned int nums[MAXABITS + 1];
   int i;
   int totaluse;
+  // 初始化
   for (i = 0; i <= MAXABITS; i++) nums[i] = 0;  /* reset counts */
+  // 如english所示
   na = numusearray(t, nums);  /* count keys in array part */
+  // array key的数量
   totaluse = na;  /* all those keys are integer keys */
+  // hash key的数量
   totaluse += numusehash(t, nums, &na);  /* count keys in hash part */
   /* count extra key */
   na += countint(ek, nums);
@@ -402,8 +428,12 @@ static void rehash (lua_State *L, Table *t, const TValue *ek) {
 
 
 Table *luaH_new (lua_State *L) {
+  // 分配内存,并指定类型
   GCObject *o = luaC_newobj(L, LUA_TTABLE, sizeof(Table));
+  // 获得GCObject中 实际的 Table
   Table *t = gco2t(o);
+
+  // 初始化 Table
   t->metatable = NULL;
   t->flags = cast_byte(~0);
   t->array = NULL;
@@ -441,26 +471,33 @@ static Node *getfreepos (Table *t) {
 */
 TValue *luaH_newkey (lua_State *L, Table *t, const TValue *key) {
   Node *mp;
-  TValue aux;
-  if (ttisnil(key)) luaG_runerror(L, "table index is nil");
+  TValue aux; // 要插入的key
+
+  if (ttisnil(key)) luaG_runerror(L, "table index is nil"); // index 不能是nil
   else if (ttisfloat(key)) {
+	// key是 float
     lua_Integer k;
     if (luaV_tointeger(key, &k, 0)) {  /* index is int? */
       setivalue(&aux, k);
       key = &aux;  /* insert it as an integer */
     }
-    else if (luai_numisnan(fltvalue(key)))
+    else if (luai_numisnan(fltvalue(key))) // index不能是 NaN 浮点数
       luaG_runerror(L, "table index is NaN");
   }
+  // 获得 key 在table中的 mainposition
   mp = mainposition(t, key);
   if (!ttisnil(gval(mp)) || isdummy(mp)) {  /* main position is taken? */
+	// 这个 position 不是 nil，也不是 dummy，说明已经被占用了
     Node *othern;
     Node *f = getfreepos(t);  /* get a free place */
     if (f == NULL) {  /* cannot find a free place? */
+	  // hash 表找不到 free pos 了，需要扩容
       rehash(L, t, key);  /* grow table */
       /* whatever called 'newkey' takes care of TM cache */
+	  // 扩容后，使用set 插入值
       return luaH_set(L, t, key);  /* insert key into grown table */
     }
+	// 得到 free pos
     lua_assert(!isdummy(f));
     othern = mainposition(t, gkey(mp));
     if (othern != mp) {  /* is colliding node out of its main position? */
@@ -484,6 +521,7 @@ TValue *luaH_newkey (lua_State *L, Table *t, const TValue *key) {
       mp = f;
     }
   }
+  // 如果没被占用的话，就直接拿来用
   setnodekey(L, &mp->i_key, key);
   luaC_barrierback(L, t, key);
   lua_assert(ttisnil(gval(mp)));
@@ -499,6 +537,7 @@ const TValue *luaH_getint (Table *t, lua_Integer key) {
   if (l_castS2U(key) - 1 < t->sizearray)
     return &t->array[key - 1];
   else {
+	// 获得 key 的node
     Node *n = hashint(t, key);
     for (;;) {  /* check whether 'key' is somewhere in the chain */
       if (ttisinteger(gkey(n)) && ivalue(gkey(n)) == key)
@@ -602,10 +641,13 @@ void luaH_setint (lua_State *L, Table *t, lua_Integer key, TValue *value) {
   if (p != luaO_nilobject)
     cell = cast(TValue *, p);
   else {
+	// 新建key
     TValue k;
     setivalue(&k, key);
+	// 插入key
     cell = luaH_newkey(L, t, &k);
   }
+  // 设置 映射
   setobj2t(L, cell, value);
 }
 

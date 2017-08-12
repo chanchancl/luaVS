@@ -147,15 +147,19 @@ void luaE_shrinkCI (lua_State *L) {
   }
 }
 
-
+// 初始化栈
 static void stack_init (lua_State *L1, lua_State *L) {
   int i; CallInfo *ci;
   /* initialize stack array */
+  // 申请一个大小为 BASIC_STACK_SIZE 的栈，栈单位大小为 sizeof(TValue)
   L1->stack = luaM_newvector(L, BASIC_STACK_SIZE, TValue);
   L1->stacksize = BASIC_STACK_SIZE;
+  // 将栈元素的元素设为空值
   for (i = 0; i < BASIC_STACK_SIZE; i++)
     setnilvalue(L1->stack + i);  /* erase new stack */
+  // 初始化栈顶
   L1->top = L1->stack;
+  // 初始化栈的结束位置
   L1->stack_last = L1->stack + L1->stacksize - EXTRA_STACK;
   /* initialize first ci */
   ci = &L1->base_ci;
@@ -184,7 +188,9 @@ static void freestack (lua_State *L) {
 static void init_registry (lua_State *L, global_State *g) {
   TValue temp;
   /* create registry */
+  // 创建一个 Table?
   Table *registry = luaH_new(L);
+
   sethvalue(L, &g->l_registry, registry);
   luaH_resize(L, registry, LUA_RIDX_LAST, 0);
   /* registry[LUA_RIDX_MAINTHREAD] = L */
@@ -205,10 +211,15 @@ static void f_luaopen (lua_State *L, void *ud) {
   UNUSED(ud);
   stack_init(L, L);  /* init stack */
   init_registry(L, g);
+  // 初始化 String Table
   luaS_init(L);
+  // 初始化一些 eventname
   luaT_init(L);
+  // 初始化 token 字符串
   luaX_init(L);
+  // 恢复gc的运行
   g->gcrunning = 1;  /* allow gc */
+  // 设置lua的版本
   g->version = lua_version(NULL);
   luai_userstateopen(L);
 }
@@ -219,22 +230,37 @@ static void f_luaopen (lua_State *L, void *ud) {
 ** any memory (to avoid errors)
 */
 static void preinit_thread (lua_State *L, global_State *g) {
+  // 让每个 lua_state, 共享同一个 global_state
   G(L) = g;
+  // 栈顶
   L->stack = NULL;
+  // 调用链， 及调用链元素个数
   L->ci = NULL;
   L->nci = 0;
+  // 栈的大小
   L->stacksize = 0;
+  // upvalues
   L->twups = L;  /* thread has no upvalues */
+  // errors recover point
   L->errorJmp = NULL;
+  // calls 数量
   L->nCcalls = 0;
+  // 钩子
+  // Functions to be called by the debugger in specific events
   L->hook = NULL;
   L->hookmask = 0;
   L->basehookcount = 0;
   L->allowhook = 1;
+  // L->hookCount = L->basehookcount
   resethookcount(L);
+  // upvalues 的链表
   L->openupval = NULL;
+  // 栈中不能 yield 的函数数量
+  // number of non-yieldable calls in stack
   L->nny = 1;
+  // state 的状态
   L->status = LUA_OK;
+  // handle error
   L->errfunc = 0;
 }
 
@@ -296,39 +322,75 @@ LUA_API lua_State *lua_newstate (lua_Alloc f, void *ud) {
   int i;
   lua_State *L;
   global_State *g;
+  // 使用指定的内存分配器 f 申请内存
   LG *l = cast(LG *, (*f)(ud, NULL, LUA_TTHREAD, sizeof(LG)));
+
+  // 请求内存失败
   if (l == NULL) return NULL;
+
+  // L = 当前线程的 lua_State
   L = &l->l.l;
+  // global state 由所有的线程共享，
+  // 由初始线程创建
   g = &l->g;
+  // 线程的 单链表
   L->next = NULL;
+  // 设置自己的类型为线程， 也就是说一个lua_state 可能等价一个线程
   L->tt = LUA_TTHREAD;
+  // 用于gc的标志位
   g->currentwhite = bitmask(WHITE0BIT);
   L->marked = luaC_white(g);
+
+  // 初始化线程
   preinit_thread(L, g);
+  // 记录分配/释放函数
   g->frealloc = f;
+  // auxiliary data to 'frealloc'
   g->ud = ud;
+  // 设置主函数
   g->mainthread = L;
+  // 设置随机数种子
   g->seed = makeseed(L);
+  // 在创建state期间，关闭GC
   g->gcrunning = 0;  /* no GC while building state */
+  // 不需要回收的内存
   g->GCestimate = 0;
+  // 全局的 hash table
   g->strt.size = g->strt.nuse = 0;
   g->strt.hash = NULL;
   setnilvalue(&g->l_registry);
+  // 在不被保护的状态下，发生错误时，调用的函数
   g->panic = NULL;
+  // 解释器版本
   g->version = NULL;
+  // 设置GC状态， 暂停
   g->gcstate = GCSpause;
+  // 设置GC类型
   g->gckind = KGC_NORMAL;
+  // 初始化
   g->allgc = g->finobj = g->tobefnz = g->fixedgc = NULL;
+  // 当前GC的位置
   g->sweepgc = NULL;
+  // 灰色的obj？
   g->gray = g->grayagain = NULL;
+  // 弱引用
   g->weak = g->ephemeron = g->allweak = NULL;
   g->twups = NULL;
+  // 当前LUA 所申请的所有内存
   g->totalbytes = sizeof(LG);
+
   g->GCdebt = 0;
+  // GC的频率?
   g->gcfinnum = 0;
   g->gcpause = LUAI_GCPAUSE;
+  // GC的颗粒度
   g->gcstepmul = LUAI_GCMUL;
-  for (i=0; i < LUA_NUMTAGS; i++) g->mt[i] = NULL;
+
+  // 初始化基础类型的 元数据
+  for (i=0; i < LUA_NUMTAGS; i++) 
+	  g->mt[i] = NULL;
+
+  // 在保护模式下运行 f_luaopen 函数，设置一些lua的基本参数
   if (luaD_rawrunprotected(L, f_luaopen, NULL) != LUA_OK) {
     /* memory allocation error: free partial state */
     close_state(L);

@@ -204,12 +204,18 @@ void luaC_fix (lua_State *L, GCObject *o) {
 /*
 ** create a new collectable object (with given type and size) and link
 ** it to 'allgc' list.
+** 创建一个可以被gc的对象，并添加到allgc 链表中
 */
 GCObject *luaC_newobj (lua_State *L, int tt, size_t sz) {
+  // 获得全局表
   global_State *g = G(L);
+  // 请求内存
   GCObject *o = cast(GCObject *, luaM_newobject(L, novariant(tt), sz));
+  // marked 这个标志 貌似和这个对象的状态有关
   o->marked = luaC_white(g);
+  // 设置类型
   o->tt = tt;
+  // 将新分配的对象加入链表
   o->next = g->allgc;
   g->allgc = o;
   return o;
