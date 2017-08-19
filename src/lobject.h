@@ -142,7 +142,7 @@ typedef struct lua_TValue {
 #define rttype(o)	((o)->tt_)
 
 /* tag with no variants (bits 0-3) */
-// 仅获取代表类型的 0-3 四个bit
+// 获取代表类型的 0-3 四个bit
 //
 #define novariant(x)	((x) & 0x0F)
 
@@ -246,7 +246,8 @@ typedef struct lua_TValue {
 // 检测 gc类型 的外部类型(TValue)，和 gc 内部类型(GCUnion)是否一致。。。
 #define righttt(obj)		(ttype(obj) == gcvalue(obj)->tt)
 
-// 这个不知道干啥
+// 检测obj是否存活
+// 不可gc  或者  （类型正确，且没有dead）
 #define checkliveness(L,obj) \
 	lua_longassert(!iscollectable(obj) || \
 		(righttt(obj) && (L == NULL || !isdead(G(L),gcvalue(obj)))))
@@ -306,6 +307,7 @@ typedef struct lua_TValue {
     checkliveness(L,io); }
 
 // thread
+// 把 x 赋值给 obj
 #define setthvalue(L,obj,x) \
   { TValue *io = (obj); lua_State *x_ = (x); \
     val_(io).gc = obj2gco(x_); settt_(io, ctb(LUA_TTHREAD)); \
@@ -620,7 +622,7 @@ typedef struct Table {
   // 单链表,元素是 key-value 键值对
   Node *node;
   Node *lastfree;  /* any free position is before this position */
-  struct Table *metatable; // 元table ?
+  struct Table *metatable; // 元表
   GCObject *gclist;
 } Table;
 

@@ -118,7 +118,9 @@ void luaS_init (lua_State *L) {
   int i, j;
   luaS_resize(L, MINSTRTABSIZE);  /* initial size of string table */
   /* pre-create memory-error message */
+  // 创建 内存分配错误 的提示字符串
   g->memerrmsg = luaS_newliteral(L, MEMERRMSG);
+  // 不可 gc
   luaC_fix(L, obj2gco(g->memerrmsg));  /* it should never be collected */
   for (i = 0; i < STRCACHE_N; i++)  /* fill cache with valid strings */
     for (j = 0; j < STRCACHE_M; j++)
@@ -183,11 +185,16 @@ static TString *internshrstr (lua_State *L, const char *str, size_t l) {
     luaS_resize(L, g->strt.size * 2);
     list = &g->strt.hash[lmod(h, g->strt.size)];  /* recompute with new size */
   }
+  // 创建一个 TString 对象
   ts = createstrobj(L, l, LUA_TSHRSTR, h);
+  // 把字符串复制进去
   memcpy(getstr(ts), str, l * sizeof(char));
+  // 设置长度
   ts->shrlen = cast_byte(l);
+  // 加入链表
   ts->u.hnext = *list;
   *list = ts;
+  // 全局 stringtable 元素的数量
   g->strt.nuse++;
   return ts;
 }

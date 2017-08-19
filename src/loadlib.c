@@ -736,12 +736,14 @@ static void createsearcherstable (lua_State *L) {
   for (i=0; searchers[i] != NULL; i++) {
     lua_pushvalue(L, -2);  /* set 'package' as upvalue for all searchers */
     lua_pushcclosure(L, searchers[i], 1);
+	// searchers[i+1] = last closure
     lua_rawseti(L, -2, i+1);
   }
 #if defined(LUA_COMPAT_LOADERS)
   lua_pushvalue(L, -1);  /* make a copy of 'searchers' table */
   lua_setfield(L, -3, "loaders");  /* put it in field 'loaders' */
 #endif
+  // packages["searchers"] = last table
   lua_setfield(L, -2, "searchers");  /* put it in field 'searchers' */
 }
 
@@ -752,16 +754,21 @@ static void createsearcherstable (lua_State *L) {
 */
 static void createclibstable (lua_State *L) {
   lua_newtable(L);  /* create CLIBS table */
+  // 创建 元表
   lua_createtable(L, 0, 1);  /* create metatable for CLIBS */
+  // 在元表设置field  ["__gc"] == gctm
   lua_pushcfunction(L, gctm);
   lua_setfield(L, -2, "__gc");  /* set finalizer for CLIBS table */
+  // 将栈顶元素，设置为 idx == -2 元素的元表，并弹出栈顶
   lua_setmetatable(L, -2);
+  // registry[address of（CLIBS）] = table CLIBS
   lua_rawsetp(L, LUA_REGISTRYINDEX, &CLIBS);  /* set CLIBS table in registry */
 }
 
 
 LUAMOD_API int luaopen_package (lua_State *L) {
   createclibstable(L);
+  // 创建 package table, 并作为每个 search函数的 upvalue
   luaL_newlib(L, pk_funcs);  /* create 'package' table */
   createsearcherstable(L);
   /* set field 'path' */
@@ -771,11 +778,14 @@ LUAMOD_API int luaopen_package (lua_State *L) {
   /* store config information */
   lua_pushliteral(L, LUA_DIRSEP "\n" LUA_PATH_SEP "\n" LUA_PATH_MARK "\n"
                      LUA_EXEC_DIR "\n" LUA_IGMARK "\n");
+  // packaged["config"] = last string
   lua_setfield(L, -2, "config");
   /* set field 'loaded' */
+  // packages["loaded"] = registry["_LOADED"]
   luaL_getsubtable(L, LUA_REGISTRYINDEX, "_LOADED");
   lua_setfield(L, -2, "loaded");
   /* set field 'preload' */
+  // packages["loaded"] = registry["_LOADED"]
   luaL_getsubtable(L, LUA_REGISTRYINDEX, "_PRELOAD");
   lua_setfield(L, -2, "preload");
   lua_pushglobaltable(L);

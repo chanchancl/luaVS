@@ -66,10 +66,11 @@ static TValue *index2addr (lua_State *L, int idx) {
     else return o;
   }
   else if (!ispseudo(idx)) {  /* negative index */
+	// 负数索引
     api_check(L, idx != 0 && -idx <= L->top - (ci->func + 1), "invalid index");
     return L->top + idx;
   }
-  else if (idx == LUA_REGISTRYINDEX)
+  else if (idx == LUA_REGISTRYINDEX) // 假 id， 用于获取全局登记表
     return &G(L)->l_registry;
   else {  /* upvalues */
     idx = LUA_REGISTRYINDEX - idx;
@@ -545,9 +546,13 @@ LUA_API void lua_pushcclosure (lua_State *L, lua_CFunction fn, int n) {
     api_checknelems(L, n);
     api_check(L, n <= MAXUPVAL, "upvalue index too large");
     luaC_checkGC(L);
+	// 创建闭包
     cl = luaF_newCclosure(L, n);
+	// 闭包函数
     cl->f = fn;
+	// 从栈中删除 upvalues
     L->top -= n;
+	// 将upvalues，
     while (n--) {
       setobj2n(L, &cl->upvalue[n], L->top + n);
       /* does not need barrier because closure is white */
@@ -659,7 +664,7 @@ LUA_API int lua_rawget (lua_State *L, int idx) {
   return ttnov(L->top - 1);
 }
 
-
+// 从栈中下标为 idx 的table中，取出下标为 n 的元素，并压入栈顶
 LUA_API int lua_rawgeti (lua_State *L, int idx, lua_Integer n) {
   StkId t;
   lua_lock(L);
@@ -952,7 +957,10 @@ static void f_call (lua_State *L, void *ud) {
 }
 
 
-
+// 调用函数
+// nargs 参数数量,
+// nresults 返回值数量
+// 函数要先入栈
 LUA_API int lua_pcallk (lua_State *L, int nargs, int nresults, int errfunc,
                         lua_KContext ctx, lua_KFunction k) {
   struct CallS c;

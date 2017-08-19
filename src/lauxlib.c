@@ -948,10 +948,12 @@ LUALIB_API int luaL_getsubtable (lua_State *L, int idx, const char *fname) {
 */
 LUALIB_API void luaL_requiref (lua_State *L, const char *modname,
                                lua_CFunction openf, int glb) {
+  // 在 registry 中，寻找名为 _LOADED 的 table，没有就新建一个
   luaL_getsubtable(L, LUA_REGISTRYINDEX, "_LOADED");
   lua_getfield(L, -1, modname);  /* _LOADED[modname] */
+  // 在 _LOADED 中寻找 modname,
   if (!lua_toboolean(L, -1)) {  /* package not already loaded? */
-	// 没有加载这个 lib
+	// 还没加载这个 lib
     lua_pop(L, 1);  /* remove field */
 	// 函数 入栈
     lua_pushcfunction(L, openf);
@@ -959,12 +961,26 @@ LUALIB_API void luaL_requiref (lua_State *L, const char *modname,
     lua_pushstring(L, modname);  /* argument to open function */
 	// 调用函数
     lua_call(L, 1, 1);  /* call 'openf' to open module */
+	// top
+	//  table _LOADED
+	//  lastload table
+	//  lastload table
     lua_pushvalue(L, -1);  /* make copy of module (call result) */
+	// top
+	//  table _LOADED
+	//  lastload table
     lua_setfield(L, -3, modname);  /* _LOADED[modname] = module */
   }
+  // top
+  //  lastload table
   lua_remove(L, -2);  /* remove _LOADED table */
   if (glb) {
+	// top
+	//  lastload table
+	//  lastload table
     lua_pushvalue(L, -1);  /* copy of module */
+	// top
+	//  lastload table
     lua_setglobal(L, modname);  /* _G[modname] = module */
   }
 }

@@ -193,9 +193,12 @@ void luaC_upvalbarrier_ (lua_State *L, UpVal *uv) {
 
 void luaC_fix (lua_State *L, GCObject *o) {
   global_State *g = G(L);
+  // 只有最近创建的 obj 可以被设置为 fix
   lua_assert(g->allgc == o);  /* object must be 1st in 'allgc' list! */
   white2gray(o);  /* they will be gray forever */
+  // 从 allgc 中删除
   g->allgc = o->next;  /* remove object from 'allgc' list */
+  // 添加到 fixedgc 链表
   o->next = g->fixedgc;  /* link it to 'fixedgc' list */
   g->fixedgc = o;
 }
@@ -215,7 +218,7 @@ GCObject *luaC_newobj (lua_State *L, int tt, size_t sz) {
   o->marked = luaC_white(g);
   // 设置类型
   o->tt = tt;
-  // 将新分配的对象加入链表
+  // 将新分配的对象加入 可gc对象链表
   o->next = g->allgc;
   g->allgc = o;
   return o;

@@ -108,6 +108,7 @@ void luaE_setdebt (global_State *g, l_mem debt) {
 CallInfo *luaE_extendCI (lua_State *L) {
   CallInfo *ci = luaM_new(L, CallInfo);
   lua_assert(L->ci->next == NULL);
+  // 创建一个新的 ci，并添加进链表
   L->ci->next = ci;
   ci->previous = L->ci;
   ci->next = NULL;
@@ -152,6 +153,8 @@ static void stack_init (lua_State *L1, lua_State *L) {
   int i; CallInfo *ci;
   /* initialize stack array */
   // 申请一个大小为 BASIC_STACK_SIZE 的栈，栈单位大小为 sizeof(TValue)
+  // BASIC_STACK_SIZE : 2 * 栈的最小值， 2 * 20 = 40
+  // 总大小 sizeof(TValue) * 40
   L1->stack = luaM_newvector(L, BASIC_STACK_SIZE, TValue);
   L1->stacksize = BASIC_STACK_SIZE;
   // 将栈元素的元素设为空值
@@ -160,13 +163,18 @@ static void stack_init (lua_State *L1, lua_State *L) {
   // 初始化栈顶
   L1->top = L1->stack;
   // 初始化栈的结束位置
+  // 栈保留了 EXTRA_STACK 个位置，5个
   L1->stack_last = L1->stack + L1->stacksize - EXTRA_STACK;
   /* initialize first ci */
+  // 初始化第一个 call info
   ci = &L1->base_ci;
   ci->next = ci->previous = NULL;
   ci->callstatus = 0;
+  // ci func,在栈中的index
   ci->func = L1->top;
+  // 将上面指定的entry初始化为nil
   setnilvalue(L1->top++);  /* 'function' entry for this 'ci' */
+  // 这个调用 call_info 的栈，从 1 + 20 开始，
   ci->top = L1->top + LUA_MINSTACK;
   L1->ci = ci;
 }
@@ -190,8 +198,16 @@ static void init_registry (lua_State *L, global_State *g) {
   /* create registry */
   // 创建一个 Table?
   Table *registry = luaH_new(L);
-
+  
+  // luaH_new 返回的是 Table类型，所以要转换为 TValue
+  // 然后再存储到 table中
+  
+  // 绑定到 global state 上
   sethvalue(L, &g->l_registry, registry);
+
+  // 在table中添加两个元素，在 array 中
+  // registry[2] == L
+  // registry[1] == 另一个新建的table
   luaH_resize(L, registry, LUA_RIDX_LAST, 0);
   /* registry[LUA_RIDX_MAINTHREAD] = L */
   setthvalue(L, &temp, L);  /* temp = L */
@@ -209,7 +225,9 @@ static void init_registry (lua_State *L, global_State *g) {
 static void f_luaopen (lua_State *L, void *ud) {
   global_State *g = G(L);
   UNUSED(ud);
+  // 初始化 lua_state 的栈
   stack_init(L, L);  /* init stack */
+  // 创建 regisry，并初始化2个元素
   init_registry(L, g);
   // 初始化 String Table
   luaS_init(L);
@@ -366,31 +384,39 @@ LUA_API lua_State *lua_newstate (lua_Alloc f, void *ud) {
   // 设置GC状态， 暂停
   g->gcstate = GCSpause;
   // 设置GC类型
+  // 两种，一种是正常gc，另一种只在内存分配失败时gc
   g->gckind = KGC_NORMAL;
-  // 初始化
+  // 各种 gc 元素的链表
+  // allgc, 所有 可以 gc的元素链表
+  // finobj, 可能：有析构函数的gc元素 链表
+  // tobefnz, userdate 链表
+  // fixedgc, 不能被gc的元素链表
   g->allgc = g->finobj = g->tobefnz = g->fixedgc = NULL;
   // 当前GC的位置
   g->sweepgc = NULL;
-  // 灰色的obj？
+  // 灰色元素 的链表
   g->gray = g->grayagain = NULL;
   // 弱引用
   g->weak = g->ephemeron = g->allweak = NULL;
   g->twups = NULL;
-  // 当前LUA 所申请的所有内存
+  // 当前LUA 所申请的所有内存，现在只申请了一个 LG 对象的内存
   g->totalbytes = sizeof(LG);
 
+  // 可以被gc，但尚未释放的内存大小
   g->GCdebt = 0;
-  // GC的频率?
+  // 每个gc 动作中，finalizer 调用的次数
   g->gcfinnum = 0;
+  // 两次 gc 动作的间隔
   g->gcpause = LUAI_GCPAUSE;
   // GC的颗粒度
   g->gcstepmul = LUAI_GCMUL;
 
-  // 初始化基础类型的 元数据
+  // 初始化基础类型的 元数据 metedata
   for (i=0; i < LUA_NUMTAGS; i++) 
 	  g->mt[i] = NULL;
 
   // 在保护模式下运行 f_luaopen 函数，设置一些lua的基本参数
+  // 据介绍是，f_luaopen，中要申请内存，可能引发 alloc_error
   if (luaD_rawrunprotected(L, f_luaopen, NULL) != LUA_OK) {
     /* memory allocation error: free partial state */
     close_state(L);

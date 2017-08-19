@@ -346,7 +346,8 @@ static void setnodevector (lua_State *L, Table *t, unsigned int size) {
 }
 
 
-// nasize应该是 array大小，nhsize 是node list 的大小
+// nasize应该是 array大小，
+// nhsize 是node list 的大小
 void luaH_resize (lua_State *L, Table *t, unsigned int nasize,
                                           unsigned int nhsize) {
   unsigned int i;
@@ -426,7 +427,7 @@ static void rehash (lua_State *L, Table *t, const TValue *ek) {
 ** }=============================================================
 */
 
-
+// 在stack 中创建一个table，
 Table *luaH_new (lua_State *L) {
   // 分配内存,并指定类型
   GCObject *o = luaC_newobj(L, LUA_TTABLE, sizeof(Table));
@@ -434,10 +435,13 @@ Table *luaH_new (lua_State *L) {
   Table *t = gco2t(o);
 
   // 初始化 Table
+  // 元表
   t->metatable = NULL;
   t->flags = cast_byte(~0);
+  // 数组部分
   t->array = NULL;
   t->sizearray = 0;
+  // node 部分, key-value 对
   setnodevector(L, t, 0);
   return t;
 }
