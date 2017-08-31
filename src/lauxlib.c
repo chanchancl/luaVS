@@ -728,6 +728,7 @@ typedef struct LoadS {
 } LoadS;
 
 
+// 读取 ud,LoadS 中的字符串
 static const char *getS (lua_State *L, void *ud, size_t *size) {
   LoadS *ls = (LoadS *)ud;
   (void)L;  /* not used */
@@ -740,6 +741,7 @@ static const char *getS (lua_State *L, void *ud, size_t *size) {
 
 LUALIB_API int luaL_loadbufferx (lua_State *L, const char *buff, size_t size,
                                  const char *name, const char *mode) {
+  // 包装字符串为 LoadS 结构
   LoadS ls;
   ls.s = buff;
   ls.size = size;
@@ -927,6 +929,8 @@ LUALIB_API void luaL_setfuncs (lua_State *L, const luaL_Reg *l, int nup) {
 ** into the stack
 */
 LUALIB_API int luaL_getsubtable (lua_State *L, int idx, const char *fname) {
+  // 在栈中，idx的table中，寻找一个叫 fname 的子table
+  // 找到，并且类型为table
   if (lua_getfield(L, idx, fname) == LUA_TTABLE)
     return 1;  /* table already there */
   else {

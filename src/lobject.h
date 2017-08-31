@@ -497,11 +497,13 @@ typedef struct LocVar {
 /*
 ** Function Prototypes
 */
+// 函数原型  构建一个函数所需要的所有信息
 typedef struct Proto {
   CommonHeader; // GC对象
   // 函数固定的参数个数
   lu_byte numparams;  /* number of fixed parameters */
   lu_byte is_vararg;  /* 2: declared vararg; 1: uses vararg */
+  // 该函数最多需要的 栈空间
   lu_byte maxstacksize;  /* number of registers needed by this function */
   // upvalue的数量
   int sizeupvalues;  /* size of 'upvalues' */
@@ -529,10 +531,13 @@ typedef struct Proto {
   // 局部变量信息
   LocVar *locvars;  /* information about local variables (debug information) */
 
-  //
+  // upvalue 的信息
   Upvaldesc *upvalues;  /* upvalue information */
+  // 最后一个由该Proto创建的 Closure
   struct LClosure *cache;  /* last-created closure with this prototype */
+  // 源名称
   TString  *source;  /* used for debug information */
+  // gclist
   GCObject *gclist;
 } Proto;
 

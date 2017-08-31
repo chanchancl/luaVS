@@ -21,9 +21,13 @@
 #define LUA_VERSION_NUM		503
 #define LUA_VERSION_RELEASE	"2"
 
+// Lua 5.3
 #define LUA_VERSION	"Lua " LUA_VERSION_MAJOR "." LUA_VERSION_MINOR
+// Lua 5.3.2
 #define LUA_RELEASE	LUA_VERSION "." LUA_VERSION_RELEASE
+// Lua 5.3.2  Copyright (c) 1994-2015 Lua.org, PUC-Rio
 #define LUA_COPYRIGHT	LUA_RELEASE "  Copyright (C) 1994-2015 Lua.org, PUC-Rio"
+// R. Ierusalimschy, L. H. de Figueiredo, W. Celes
 #define LUA_AUTHORS	"R. Ierusalimschy, L. H. de Figueiredo, W. Celes"
 
 

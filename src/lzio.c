@@ -19,7 +19,8 @@
 #include "lstate.h"
 #include "lzio.h"
 
-
+// 使用 reader 来获取数据，并返回读取的第一个 字节
+// 若果是 char， 则  char -> unsigned int -> int
 int luaZ_fill (ZIO *z) {
   size_t size;
   lua_State *L = z->L;

@@ -48,6 +48,7 @@ typedef union {
 
 
 typedef struct Token {
+  // token 的id
   int token;
   SemInfo seminfo;
 } Token;
@@ -56,18 +57,28 @@ typedef struct Token {
 /* state of the lexer plus state of the parser when shared by all
    functions */
 typedef struct LexState {
+  // 当前解析的位置
   int current;  /* current character (charint) */
+  // 总共的行数
   int linenumber;  /* input line counter */
+  // 最后被分析的一行
   int lastline;  /* line of last token 'consumed' */
+  // 目前分析出来的 Token
   Token t;  /* current token */
   Token lookahead;  /* look ahead token */
+  // funcstate
   struct FuncState *fs;  /* current function (parser) */
+  // lua_state
   struct lua_State *L;
+  // zio
   ZIO *z;  /* input stream */
+  // 临时缓冲区
   Mbuffer *buff;  /* buffer for tokens */
   Table *h;  /* to avoid collection/reuse strings */
   struct Dyndata *dyd;  /* dynamic structures used by the parser */
+  // 当前来源
   TString *source;  /* current source name */
+  // 环境变量的名称
   TString *envn;  /* environment variable name */
   char decpoint;  /* locale decimal point */
 } LexState;

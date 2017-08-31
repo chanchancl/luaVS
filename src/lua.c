@@ -328,8 +328,10 @@ static int pushline (lua_State *L, int firstline) {
 ** has either compiled chunk or original line (if compilation failed).
 */
 static int addreturn (lua_State *L) {
+  // 入栈，加上前缀 return
   const char *line = lua_tostring(L, -1);  /* original line */
   const char *retline = lua_pushfstring(L, "return %s;", line);
+
   int status = luaL_loadbuffer(L, retline, strlen(retline), "=stdin");
   if (status == LUA_OK) {
     lua_remove(L, -2);  /* remove modified line */
@@ -369,9 +371,12 @@ static int multiline (lua_State *L) {
 */
 static int loadline (lua_State *L) {
   int status;
+  // 清除栈
   lua_settop(L, 0);
+  // 读取一行内容，并压入栈
   if (!pushline(L, 1))
     return -1;  /* no input */
+  // 在语句前，加入 return,并编译
   if ((status = addreturn(L)) != LUA_OK)  /* 'return ...' did not work? */
     status = multiline(L);  /* try as command, maybe with continuation lines */
   lua_remove(L, 1);  /* remove line from the stack */
@@ -404,7 +409,9 @@ static void doREPL (lua_State *L) {
   int status;
   const char *oldprogname = progname;
   progname = NULL;  /* no 'progname' on errors in interactive mode */
+  // 从 stdin，读取一行输入, 并尝试编译
   while ((status = loadline(L)) != -1) {
+	// 
     if (status == LUA_OK)
       status = docall(L, 0, LUA_MULTRET);
     if (status == LUA_OK) l_print(L);

@@ -107,7 +107,9 @@ static void seterrorobj (lua_State *L, int errcode, StkId oldtop) {
 }
 
 
+// 抛出异常
 l_noret luaD_throw (lua_State *L, int errcode) {
+  // 有异常函数
   if (L->errorJmp) {  /* thread has an error handler? */
     L->errorJmp->status = errcode;  /* set status */
     LUAI_THROW(L, L->errorJmp);  /* jump to it */
@@ -758,16 +760,19 @@ static void checkmode (lua_State *L, const char *mode, const char *x) {
   }
 }
 
-
+// 进行语法分析
 static void f_parser (lua_State *L, void *ud) {
   LClosure *cl;
   struct SParser *p = cast(struct SParser *, ud);
   int c = zgetc(p->z);  /* read first character */
+  // 检测模式， binary 或者 text
   if (c == LUA_SIGNATURE[0]) {
+	// binary 模式
     checkmode(L, p->mode, "binary");
     cl = luaU_undump(L, p->z, p->name);
   }
   else {
+	// text 模式
     checkmode(L, p->mode, "text");
     cl = luaY_parser(L, p->z, &p->buff, &p->dyd, p->name, c);
   }
@@ -776,11 +781,14 @@ static void f_parser (lua_State *L, void *ud) {
 }
 
 
+// 保护模式下，进行语法分析
 int luaD_protectedparser (lua_State *L, ZIO *z, const char *name,
                                         const char *mode) {
   struct SParser p;
   int status;
+  // 顾名思义
   L->nny++;  /* cannot yield during parsing */
+  // 初始化 Sparser 结构, name="=stdin", mode = ""
   p.z = z; p.name = name; p.mode = mode;
   p.dyd.actvar.arr = NULL; p.dyd.actvar.size = 0;
   p.dyd.gt.arr = NULL; p.dyd.gt.size = 0;

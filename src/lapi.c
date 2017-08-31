@@ -58,9 +58,11 @@ const char lua_ident[] =
 
 // 将 State 中 index的元素返回
 static TValue *index2addr (lua_State *L, int idx) {
+  // 当前的调用信息 CallInfo
   CallInfo *ci = L->ci;
-  if (idx > 0) {
+  if (idx > 0) { // 正数索引
     TValue *o = ci->func + idx;
+	// top - (func + 1) == 栈中元素数量
     api_check(L, idx <= ci->top - (ci->func + 1), "unacceptable index");
     if (o >= L->top) return NONVALIDVALUE;
     else return o;
@@ -1012,6 +1014,7 @@ LUA_API int lua_load (lua_State *L, lua_Reader reader, void *data,
   int status;
   lua_lock(L);
   if (!chunkname) chunkname = "?";
+  // 初始化 ZIO
   luaZ_init(L, &z, reader, data);
   status = luaD_protectedparser(L, &z, chunkname, mode);
   if (status == LUA_OK) {  /* no errors? */

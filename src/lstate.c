@@ -147,14 +147,15 @@ void luaE_shrinkCI (lua_State *L) {
     ci = next2;  /* keep next's next */
   }
 }
-
+#include <stdio.h>
 // 初始化栈
 static void stack_init (lua_State *L1, lua_State *L) {
   int i; CallInfo *ci;
   /* initialize stack array */
   // 申请一个大小为 BASIC_STACK_SIZE 的栈，栈单位大小为 sizeof(TValue)
   // BASIC_STACK_SIZE : 2 * 栈的最小值， 2 * 20 = 40
-  // 总大小 sizeof(TValue) * 40
+  // 总大小 sizeof(TValue) * 40 == 640
+  // sizeof(TValue) == 16
   L1->stack = luaM_newvector(L, BASIC_STACK_SIZE, TValue);
   L1->stacksize = BASIC_STACK_SIZE;
   // 将栈元素的元素设为空值
@@ -162,8 +163,8 @@ static void stack_init (lua_State *L1, lua_State *L) {
     setnilvalue(L1->stack + i);  /* erase new stack */
   // 初始化栈顶
   L1->top = L1->stack;
-  // 初始化栈的结束位置
-  // 栈保留了 EXTRA_STACK 个位置，5个
+  // 
+  // 指向倒数第5个stack元素
   L1->stack_last = L1->stack + L1->stacksize - EXTRA_STACK;
   /* initialize first ci */
   // 初始化第一个 call info
@@ -173,6 +174,7 @@ static void stack_init (lua_State *L1, lua_State *L) {
   // ci func,在栈中的index
   ci->func = L1->top;
   // 将上面指定的entry初始化为nil
+  // 也就是说，栈中第一个元素是 ci 的 func
   setnilvalue(L1->top++);  /* 'function' entry for this 'ci' */
   // 这个调用 call_info 的栈，从 1 + 20 开始，
   ci->top = L1->top + LUA_MINSTACK;
@@ -361,7 +363,7 @@ LUA_API lua_State *lua_newstate (lua_Alloc f, void *ud) {
 
   // 初始化线程
   preinit_thread(L, g);
-  // 记录分配/释放函数
+  // 记录 内存分配函数，后续的内存分配，都使用这个函数
   g->frealloc = f;
   // auxiliary data to 'frealloc'
   g->ud = ud;

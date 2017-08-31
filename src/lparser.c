@@ -46,11 +46,15 @@
 ** nodes for block list (list of active blocks)
 */
 typedef struct BlockCnt {
+  // 链表
   struct BlockCnt *previous;  /* chain */
+  // 第一个 label
   int firstlabel;  /* index of first label in this block */
   int firstgoto;  /* index of first pending goto in this block */
   lu_byte nactvar;  /* # active locals outside the block */
+  // 是否是 upval
   lu_byte upval;  /* true if some variable in the block is an upvalue */
+  // 这个 block 是否是循环
   lu_byte isloop;  /* true if 'block' is a loop */
 } BlockCnt;
 
@@ -142,6 +146,7 @@ static TString *str_checkname (LexState *ls) {
 
 
 static void init_exp (expdesc *e, expkind k, int i) {
+  // 初始化 expdesc
   e->f = e->t = NO_JUMP;
   e->k = k;
   e->u.info = i;
@@ -225,12 +230,18 @@ static int searchupvalue (FuncState *fs, TString *name) {
 
 
 static int newupvalue (FuncState *fs, TString *name, expdesc *v) {
+  // 函数 header
   Proto *f = fs->f;
+  // 旧的 size
   int oldsize = f->sizeupvalues;
+  // upvalues 不能超过 MAXUPVAL
   checklimit(fs, fs->nups + 1, MAXUPVAL, "upvalues");
+  // 扩展，
   luaM_growvector(fs->ls->L, f->upvalues, fs->nups, f->sizeupvalues,
                   Upvaldesc, MAXUPVAL, "upvalues");
+  // 初始化新分配的
   while (oldsize < f->sizeupvalues) f->upvalues[oldsize++].name = NULL;
+  // 加入upvalue
   f->upvalues[fs->nups].instack = (v->k == VLOCAL);
   f->upvalues[fs->nups].idx = cast_byte(v->u.info);
   f->upvalues[fs->nups].name = name;
@@ -430,7 +441,7 @@ static void movegotosout (FuncState *fs, BlockCnt *bl) {
   }
 }
 
-
+// 初始化 block
 static void enterblock (FuncState *fs, BlockCnt *bl, lu_byte isloop) {
   bl->isloop = isloop;
   bl->nactvar = fs->nactvar;
@@ -536,9 +547,11 @@ static void open_func (LexState *ls, FuncState *fs, BlockCnt *bl) {
   fs->nactvar = 0;
   fs->firstlocal = ls->dyd->actvar.n;
   fs->bl = NULL;
+  // 从 funcstate 获取 proto
   f = fs->f;
   f->source = ls->source;
   f->maxstacksize = 2;  /* registers 0/1 are always valid */
+  // 初始化 block
   enterblock(fs, bl, 0);
 }
 
@@ -578,6 +591,7 @@ static void close_func (LexState *ls) {
 ** 'until' closes syntactical blocks, but do not close scope,
 ** so it is handled in separate.
 */
+// 看这个 token，是否是一个 作用域 开启的token
 static int block_follow (LexState *ls, int withuntil) {
   switch (ls->t.token) {
     case TK_ELSE: case TK_ELSEIF:
@@ -591,11 +605,13 @@ static int block_follow (LexState *ls, int withuntil) {
 
 static void statlist (LexState *ls) {
   /* statlist -> { stat [';'] } */
+  // 生成 statlist
   while (!block_follow(ls, 1)) {
     if (ls->t.token == TK_RETURN) {
       statement(ls);
       return;  /* 'return' must be last statement */
     }
+	// 生成下个 statement
     statement(ls);
   }
 }
@@ -1383,7 +1399,10 @@ static void test_then_block (LexState *ls, int *escapelist) {
   FuncState *fs = ls->fs;
   expdesc v;
   int jf;  /* instruction to skip 'then' code (if condition is false) */
+  // 跳过if 或者 elseif 这个 token
+  // 理论上， if 或者 elseif 在llex 中分析时，不就应该已经 pass 了
   luaX_next(ls);  /* skip IF or ELSEIF */
+  // 
   expr(ls, &v);  /* read condition */
   checknext(ls, TK_THEN);
   if (ls->t.token == TK_GOTO || ls->t.token == TK_BREAK) {
@@ -1537,10 +1556,14 @@ static void statement (LexState *ls) {
   enterlevel(ls);
   switch (ls->t.token) {
     case ';': {  /* stat -> ';' (empty statement) */
+	  // 直接跳过 ;
       luaX_next(ls);  /* skip ';' */
       break;
     }
     case TK_IF: {  /* stat -> ifstat */
+	  // if a == b then
+	  // end
+	  // if statment
       ifstat(ls, line);
       break;
     }
@@ -1610,11 +1633,16 @@ static void statement (LexState *ls) {
 static void mainfunc (LexState *ls, FuncState *fs) {
   BlockCnt bl;
   expdesc v;
+  // 初始化 Func_state
   open_func(ls, fs, &bl);
   fs->f->is_vararg = 2;  /* main function is always declared vararg */
+  // 初始化 expdesc
   init_exp(&v, VLOCAL, 0);  /* create and... */
+  // 把 环境变量作为 upvalue
   newupvalue(fs, ls->envn, &v);  /* ...set environment upvalue */
+  // 读取下一个 token
   luaX_next(ls);  /* read first token */
+
   statlist(ls);  /* parse main body */
   check(ls, TK_EOS);
   close_func(ls);
@@ -1625,13 +1653,18 @@ LClosure *luaY_parser (lua_State *L, ZIO *z, Mbuffer *buff,
                        Dyndata *dyd, const char *name, int firstchar) {
   LexState lexstate;
   FuncState funcstate;
+  // 创建 闭包
   LClosure *cl = luaF_newLclosure(L, 1);  /* create main closure */
+  // 压入栈，防止被 gc 回收了
   setclLvalue(L, L->top, cl);  /* anchor it (to avoid being collected) */
   luaD_inctop(L);
+  // 为 lexstate 申请一个table
   lexstate.h = luaH_new(L);  /* create table for scanner */
   sethvalue(L, L->top, lexstate.h);  /* anchor it */
   luaD_inctop(L);
+  // FuncState
   funcstate.f = cl->p = luaF_newproto(L);
+  // c -> lua
   funcstate.f->source = luaS_new(L, name);  /* create and anchor TString */
   lua_assert(iswhite(funcstate.f));  /* do not need barrier here */
   lexstate.buff = buff;

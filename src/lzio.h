@@ -17,9 +17,10 @@
 
 typedef struct Zio ZIO;
 
+// 若还有尚未读取的字符，则读取下一个字符 否则使用reader来获取数据
 #define zgetc(z)  (((z)->n--)>0 ?  cast_uchar(*(z)->p++) : luaZ_fill(z))
 
-
+// 缓冲临时数据
 typedef struct Mbuffer {
   char *buffer;
   size_t n;

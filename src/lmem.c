@@ -83,6 +83,7 @@ void *luaM_realloc_ (lua_State *L, void *block, size_t osize, size_t nsize) {
   if (nsize > realosize && g->gcrunning)
     luaC_fullgc(L, 1);  /* force a GC whenever possible */
 #endif
+  // 分配内存
   newblock = (*g->frealloc)(g->ud, block, osize, nsize);
   if (newblock == NULL && nsize > 0) {
 	// 分配内存失败，尝试gc一下 再分配

@@ -39,6 +39,7 @@ typedef enum {
 #define vkisinreg(k)	((k) == VNONRELOC || (k) == VLOCAL)
 
 typedef struct expdesc {
+  // 表达式类型
   expkind k;
   union {
     struct {  /* for indexed variables (VINDEXED) */
@@ -96,6 +97,7 @@ struct BlockCnt;  /* defined in lparser.c */
 
 /* state needed to generate code for a given function */
 typedef struct FuncState {
+  // 一个函数的 信息
   Proto *f;  /* current function header */
   struct FuncState *prev;  /* enclosing function */
   struct LexState *ls;  /* lexical state */
