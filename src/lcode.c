@@ -699,9 +699,11 @@ void luaK_goiffalse (FuncState *fs, expdesc *e) {
 }
 
 
+// 执行 not 运算
 static void codenot (FuncState *fs, expdesc *e) {
   luaK_dischargevars(fs, e);
   switch (e->k) {
+	// not nil, not false ==> true
     case VNIL: case VFALSE: {
       e->k = VTRUE;
       break;
@@ -749,11 +751,13 @@ void luaK_indexed (FuncState *fs, expdesc *t, expdesc *k) {
 */
 static int validop (int op, TValue *v1, TValue *v2) {
   switch (op) {
+	// and or ^ << >> ~ ， 左右expr 都必须可以转换为 int
     case LUA_OPBAND: case LUA_OPBOR: case LUA_OPBXOR:
     case LUA_OPSHL: case LUA_OPSHR: case LUA_OPBNOT: {  /* conversion errors */
       lua_Integer i;
       return (tointeger(v1, &i) && tointeger(v2, &i));
     }
+	// 0 不能当除数
     case LUA_OPDIV: case LUA_OPIDIV: case LUA_OPMOD:  /* division by 0 */
       return (nvalue(v2) != 0);
     default: return 1;  /* everything else is valid */
@@ -766,9 +770,13 @@ static int validop (int op, TValue *v1, TValue *v2) {
 */
 static int constfolding (FuncState *fs, int op, expdesc *e1, expdesc *e2) {
   TValue v1, v2, res;
+  // 1.两边参数都必须可以转换为 int or float
+  // 2.针对一些操作符，两边必须可以转换为 int，且0不能作除数
   if (!tonumeral(e1, &v1) || !tonumeral(e2, &v2) || !validop(op, &v1, &v2))
     return 0;  /* non-numeric operands or not safe to fold */
+  // 执行 op
   luaO_arith(fs->ls->L, op, &v1, &v2, &res);  /* does operation */
+  // 更新表达式类型
   if (ttisinteger(&res)) {
     e1->k = VKINT;
     e1->u.ival = ivalue(&res);
@@ -794,9 +802,11 @@ static int constfolding (FuncState *fs, int op, expdesc *e1, expdesc *e2) {
 static void codeexpval (FuncState *fs, OpCode op,
                         expdesc *e1, expdesc *e2, int line) {
   lua_assert(op >= OP_ADD);
+  // 单目运算符
   if (op <= OP_BNOT && constfolding(fs, (op - OP_ADD) + LUA_OPADD, e1, e2))
-    return;  /* result has been folded */
+    return;  /* result has been folded */ // 结果并不重要
   else {
+	// other ops
     int o1, o2;
     /* move operands to registers (if needed) */
     if (op == OP_UNM || op == OP_BNOT || op == OP_LEN) {  /* unary op? */
@@ -866,6 +876,7 @@ void luaK_infix (FuncState *fs, BinOpr op, expdesc *v) {
       luaK_exp2nextreg(fs, v);  /* operand must be on the 'stack' */
       break;
     }
+	// 
     case OPR_ADD: case OPR_SUB:
     case OPR_MUL: case OPR_DIV: case OPR_IDIV:
     case OPR_MOD: case OPR_POW:

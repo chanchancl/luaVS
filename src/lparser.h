@@ -57,6 +57,7 @@ typedef struct expdesc {
 
 
 /* description of active local variable */
+// 变量在 stack中的位置
 typedef struct Vardesc {
   short idx;  /* variable index in stack */
 } Vardesc;
@@ -72,6 +73,7 @@ typedef struct Labeldesc {
 
 
 /* list of labels or gotos */
+// labels 或者是 可以goto 的点
 typedef struct Labellist {
   Labeldesc *arr;  /* array */
   int n;  /* number of entries in use */

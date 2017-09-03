@@ -46,7 +46,7 @@
 ** nodes for block list (list of active blocks)
 */
 typedef struct BlockCnt {
-  // 链表
+  // 上级 BLock
   struct BlockCnt *previous;  /* chain */
   // 第一个 label
   int firstlabel;  /* index of first label in this block */
@@ -187,7 +187,7 @@ static void new_localvar (LexState *ls, TString *name) {
   dyd->actvar.arr[dyd->actvar.n++].idx = cast(short, reg);
 }
 
-
+// 从ls中读取一个值，并保存为变量 name
 static void new_localvarliteral_ (LexState *ls, const char *name, size_t sz) {
   new_localvar(ls, luaX_newstring(ls, name, sz));
 }
@@ -203,9 +203,12 @@ static LocVar *getlocvar (FuncState *fs, int i) {
 }
 
 
+// 增加 nvars 个local vars
 static void adjustlocalvars (LexState *ls, int nvars) {
   FuncState *fs = ls->fs;
+  // 更新 size
   fs->nactvar = cast_byte(fs->nactvar + nvars);
+  // 初始化
   for (; nvars; nvars--) {
     getlocvar(fs, fs->nactvar - nvars)->startpc = fs->pc;
   }
@@ -533,6 +536,7 @@ static void codeclosure (LexState *ls, expdesc *v) {
 
 static void open_func (LexState *ls, FuncState *fs, BlockCnt *bl) {
   Proto *f;
+  // 把当前的 fs 加入 ls 的链表
   fs->prev = ls->fs;  /* linked list of funcstates */
   fs->ls = ls;
   ls->fs = fs;
@@ -591,7 +595,7 @@ static void close_func (LexState *ls) {
 ** 'until' closes syntactical blocks, but do not close scope,
 ** so it is handled in separate.
 */
-// 看这个 token，是否是一个 作用域 开启的token
+// 
 static int block_follow (LexState *ls, int withuntil) {
   switch (ls->t.token) {
     case TK_ELSE: case TK_ELSEIF:
@@ -605,9 +609,11 @@ static int block_follow (LexState *ls, int withuntil) {
 
 static void statlist (LexState *ls) {
   /* statlist -> { stat [';'] } */
-  // 生成 statlist
+  // statlist 由若干个 stat 组成， 每个 stat 后面可以跟或不跟 ';'
+  // 循环直到遇到 else/elseif/end/eos TOKEN
   while (!block_follow(ls, 1)) {
     if (ls->t.token == TK_RETURN) {
+	  // 若遇到 return, 则读取 return statement 后，直接返回
       statement(ls);
       return;  /* 'return' must be last statement */
     }
@@ -811,9 +817,11 @@ static void body (LexState *ls, expdesc *e, int ismethod, int line) {
 }
 
 
+// 生成 expr 列表
 static int explist (LexState *ls, expdesc *v) {
   /* explist -> expr { ',' expr } */
   int n = 1;  /* at least one expression */
+  // 读取一个 expr
   expr(ls, v);
   while (testnext(ls, ',')) {
     luaK_exp2nextreg(ls->fs, v);
@@ -1056,28 +1064,46 @@ static const struct {
 ** subexpr -> (simpleexp | unop subexpr) { binop subexpr }
 ** where 'binop' is any binary operator with a priority higher than 'limit'
 */
+// simpleexp + 若干个 binop sunexpr
+//     5        +      ( 2 + 1)
+// simpleexp  binop     subexpr
+
+//  -       2       +    (2 + 1)
+// unop  sunexpr  binop  subexpr
 static BinOpr subexpr (LexState *ls, expdesc *v, int limit) {
   BinOpr op;
   UnOpr uop;
   enterlevel(ls);
+  // unopr 单目运算符
   uop = getunopr(ls->t.token);
   if (uop != OPR_NOUNOPR) {
+	// unop subexpr
+	// 单目运算符
     int line = ls->linenumber;
+	// 获取 subexpr
     luaX_next(ls);
     subexpr(ls, v, UNARY_PRIORITY);
+
+	// 为刚才获取的 subexpr 加上前缀 uop
     luaK_prefix(ls->fs, uop, v, line);
   }
-  else simpleexp(ls, v);
+  else simpleexp(ls, v); 
   /* expand while operators have priorities higher than 'limit' */
+  // 检测后续的 { binop sunexpr }
   op = getbinopr(ls->t.token);
   while (op != OPR_NOBINOPR && priority[op].left > limit) {
+	// 找到 binop, 且
     expdesc v2;
     BinOpr nextop;
     int line = ls->linenumber;
+	// 把 v 放入中缀
     luaX_next(ls);
     luaK_infix(ls->fs, op, v);
     /* read sub-expression with higher priority */
+	// 读取 subexpr
     nextop = subexpr(ls, &v2, priority[op].right);
+
+	// 组合
     luaK_posfix(ls->fs, op, v, &v2, line);
     op = nextop;
   }
@@ -1100,9 +1126,10 @@ static void expr (LexState *ls, expdesc *v) {
 ** =======================================================================
 */
 
-
+// 读取一个block
 static void block (LexState *ls) {
   /* block -> statlist */
+  // block 由 statlist 组成
   FuncState *fs = ls->fs;
   BlockCnt bl;
   enterblock(fs, &bl, 0);
@@ -1234,6 +1261,7 @@ static void skipnoopstat (LexState *ls) {
 }
 
 
+// 读取 label
 static void labelstat (LexState *ls, TString *label, int line) {
   /* label -> '::' NAME '::' */
   FuncState *fs = ls->fs;
@@ -1291,9 +1319,11 @@ static void repeatstat (LexState *ls, int line) {
 }
 
 
+// 读取一个 表达式
 static int exp1 (LexState *ls) {
   expdesc e;
   int reg;
+  // expr
   expr(ls, &e);
   luaK_exp2nextreg(ls->fs, &e);
   lua_assert(e.k == VNONRELOC);
@@ -1304,11 +1334,16 @@ static int exp1 (LexState *ls) {
 
 static void forbody (LexState *ls, int base, int line, int nvars, int isnum) {
   /* forbody -> DO block */
+  // for a=1,2 do
+  //	block
   BlockCnt bl;
   FuncState *fs = ls->fs;
   int prep, endfor;
+  // 增加局部变量
   adjustlocalvars(ls, 3);  /* control variables */
+  // 寻找 do
   checknext(ls, TK_DO);
+  // 
   prep = isnum ? luaK_codeAsBx(fs, OP_FORPREP, base, NO_JUMP) : luaK_jump(fs);
   enterblock(fs, &bl, 0);  /* scope for declared variables */
   adjustlocalvars(ls, nvars);
@@ -1317,7 +1352,8 @@ static void forbody (LexState *ls, int base, int line, int nvars, int isnum) {
   leaveblock(fs);  /* end of scope for declared variables */
   luaK_patchtohere(fs, prep);
   if (isnum)  /* numeric for? */
-    endfor = luaK_codeAsBx(fs, OP_FORLOOP, base, NO_JUMP);
+    // 把上面的 block 作为循环体
+	endfor = luaK_codeAsBx(fs, OP_FORLOOP, base, NO_JUMP);
   else {  /* generic for */
     luaK_codeABC(fs, OP_TFORCALL, base, 0, nvars);
     luaK_fixline(fs, line);
@@ -1335,17 +1371,23 @@ static void fornum (LexState *ls, TString *varname, int line) {
   new_localvarliteral(ls, "(for index)");
   new_localvarliteral(ls, "(for limit)");
   new_localvarliteral(ls, "(for step)");
+  // 循环变量
   new_localvar(ls, varname);
   checknext(ls, '=');
+  // 起始值
   exp1(ls);  /* initial value */
   checknext(ls, ',');
+  // 终止值
   exp1(ls);  /* limit */
+  // 可能存在的步长
   if (testnext(ls, ','))
     exp1(ls);  /* optional step */
   else {  /* default step = 1 */
+	// 不存在步长
     luaK_codek(fs, fs->freereg, luaK_intK(fs, 1));
     luaK_reserveregs(fs, 1);
   }
+  // 循环体
   forbody(ls, base, line, 1, 1);
 }
 
@@ -1377,11 +1419,17 @@ static void forlist (LexState *ls, TString *indexname) {
 
 static void forstat (LexState *ls, int line) {
   /* forstat -> FOR (fornum | forlist) END */
+  // forstat :==
+  //	for (fornum | forlist) 
+  //		???
+  //	end
+  // 可能循环体 包含在 fornum | forlist 中
   FuncState *fs = ls->fs;
   TString *varname;
   BlockCnt bl;
   enterblock(fs, &bl, 1);  /* scope for loop and control variables */
   luaX_next(ls);  /* skip 'for' */
+  // 循环变量
   varname = str_checkname(ls);  /* first variable name */
   switch (ls->t.token) {
     case '=': fornum(ls, varname, line); break;
@@ -1393,8 +1441,10 @@ static void forstat (LexState *ls, int line) {
 }
 
 
+// 读取一个 test_then_block
 static void test_then_block (LexState *ls, int *escapelist) {
   /* test_then_block -> [IF | ELSEIF] cond THEN block */
+  // 
   BlockCnt bl;
   FuncState *fs = ls->fs;
   expdesc v;
@@ -1402,9 +1452,11 @@ static void test_then_block (LexState *ls, int *escapelist) {
   // 跳过if 或者 elseif 这个 token
   // 理论上， if 或者 elseif 在llex 中分析时，不就应该已经 pass 了
   luaX_next(ls);  /* skip IF or ELSEIF */
-  // 
+  // cond
   expr(ls, &v);  /* read condition */
+  // cond then
   checknext(ls, TK_THEN);
+  // block
   if (ls->t.token == TK_GOTO || ls->t.token == TK_BREAK) {
     luaK_goiffalse(ls->fs, &v);  /* will jump to label if condition is true */
     enterblock(fs, &bl, 0);  /* must enter block before 'goto' */
@@ -1418,12 +1470,16 @@ static void test_then_block (LexState *ls, int *escapelist) {
       jf = luaK_jump(fs);
   }
   else {  /* regular case (not goto/break) */
+	// 如果 cond == true，则运行的 block
     luaK_goiftrue(ls->fs, &v);  /* skip over block if condition is false */
     enterblock(fs, &bl, 0);
     jf = v.f;
   }
+  // block 的 statlist
   statlist(ls);  /* 'then' part */
+  // leave block
   leaveblock(fs);
+  // 
   if (ls->t.token == TK_ELSE ||
       ls->t.token == TK_ELSEIF)  /* followed by 'else'/'elseif'? */
     luaK_concat(fs, escapelist, luaK_jump(fs));  /* must jump over it */
@@ -1431,15 +1487,28 @@ static void test_then_block (LexState *ls, int *escapelist) {
 }
 
 
+// 读取一个 ifstat
 static void ifstat (LexState *ls, int line) {
   /* ifstat -> IF cond THEN block {ELSEIF cond THEN block} [ELSE block] END */
+  /* 一个ifstat 由下面的语法组成
+  // if cond then
+  //	block
+  // {elseif cond then
+  //	block}
+  // [else
+  //	block]
+  // end
+  */ 
   FuncState *fs = ls->fs;
   int escapelist = NO_JUMP;  /* exit list for finished parts */
   test_then_block(ls, &escapelist);  /* IF cond THEN block */
+  // 如果下一个 token 是 elseif ，则一直找下去
   while (ls->t.token == TK_ELSEIF)
     test_then_block(ls, &escapelist);  /* ELSEIF cond THEN block */
+  // 此时 token 可能是 else
   if (testnext(ls, TK_ELSE))
     block(ls);  /* 'else' part */
+  // 寻找 end
   check_match(ls, TK_END, TK_IF, line);
   luaK_patchtohere(fs, escapelist);  /* patch escape list to 'if' end */
 }
@@ -1526,6 +1595,7 @@ static void retstat (LexState *ls) {
   if (block_follow(ls, 1) || ls->t.token == ';')
     first = nret = 0;  /* return no values */
   else {
+	// return exprlist
     nret = explist(ls, &e);  /* optional return values */
     if (hasmultret(e.k)) {
       luaK_setmultret(fs, &e);
@@ -1551,9 +1621,28 @@ static void retstat (LexState *ls) {
 }
 
 
+// 读取一个 statement, statement 相对较为复杂
 static void statement (LexState *ls) {
   int line = ls->linenumber;  /* may be needed for error messages */
   enterlevel(ls);
+  // 为了加上';'，虚构一个 xstat
+  // statement :== 
+  //	xstat[;]
+  // xstat :==
+  //	ifstat
+  //	whilestat
+  //	do block end
+  //	forstat
+  //	repeatstat
+  //	funcstat
+  //	localstat
+  //	doublecolon  ::
+  //	retstat  PS: ret stat
+  //	breakstat
+  //	gotostat
+  //	如果不属于上列，则为 exprstat
+  //	exprstat
+  //
   switch (ls->t.token) {
     case ';': {  /* stat -> ';' (empty statement) */
 	  // 直接跳过 ;
@@ -1563,21 +1652,26 @@ static void statement (LexState *ls) {
     case TK_IF: {  /* stat -> ifstat */
 	  // if a == b then
 	  // end
-	  // if statment
+	  // 读取 ifstat
       ifstat(ls, line);
       break;
     }
     case TK_WHILE: {  /* stat -> whilestat */
+	  // 读取 whilestat
       whilestat(ls, line);
       break;
     }
     case TK_DO: {  /* stat -> DO block END */
+	  // 跳过 do 这个token
       luaX_next(ls);  /* skip DO */
+	  // block
       block(ls);
+	  // find end
       check_match(ls, TK_END, TK_DO, line);
       break;
     }
     case TK_FOR: {  /* stat -> forstat */
+	  // 读取 forstat
       forstat(ls, line);
       break;
     }
@@ -1633,16 +1727,17 @@ static void statement (LexState *ls) {
 static void mainfunc (LexState *ls, FuncState *fs) {
   BlockCnt bl;
   expdesc v;
-  // 初始化 Func_state
+  // 初始化 fs，的顶层 block
   open_func(ls, fs, &bl);
   fs->f->is_vararg = 2;  /* main function is always declared vararg */
   // 初始化 expdesc
   init_exp(&v, VLOCAL, 0);  /* create and... */
   // 把 环境变量作为 upvalue
   newupvalue(fs, ls->envn, &v);  /* ...set environment upvalue */
-  // 读取下一个 token
+  // 读取第一个 token
   luaX_next(ls);  /* read first token */
 
+  // 主要的 statlist
   statlist(ls);  /* parse main body */
   check(ls, TK_EOS);
   close_func(ls);
@@ -1653,6 +1748,7 @@ LClosure *luaY_parser (lua_State *L, ZIO *z, Mbuffer *buff,
                        Dyndata *dyd, const char *name, int firstchar) {
   LexState lexstate;
   FuncState funcstate;
+
   // 创建 闭包
   LClosure *cl = luaF_newLclosure(L, 1);  /* create main closure */
   // 压入栈，防止被 gc 回收了
@@ -1662,16 +1758,20 @@ LClosure *luaY_parser (lua_State *L, ZIO *z, Mbuffer *buff,
   lexstate.h = luaH_new(L);  /* create table for scanner */
   sethvalue(L, L->top, lexstate.h);  /* anchor it */
   luaD_inctop(L);
-  // FuncState
+
+  // 创建函数原型
   funcstate.f = cl->p = luaF_newproto(L);
-  // c -> lua
+  // c -> lua，字符串转换为 lua 字符串
   funcstate.f->source = luaS_new(L, name);  /* create and anchor TString */
   lua_assert(iswhite(funcstate.f));  /* do not need barrier here */
   lexstate.buff = buff;
   lexstate.dyd = dyd;
   dyd->actvar.n = dyd->gt.n = dyd->label.n = 0;
+
+  // 设置 lexstate 的输入流为 z
   luaX_setinput(L, &lexstate, z, funcstate.f->source, firstchar);
   mainfunc(&lexstate, &funcstate);
+
   lua_assert(!funcstate.prev && funcstate.nups == 1 && !lexstate.fs);
   /* all scopes should be correctly finished */
   lua_assert(dyd->actvar.n == 0 && dyd->gt.n == 0 && dyd->label.n == 0);
