@@ -225,15 +225,17 @@ void luaK_concat (FuncState *fs, int *l1, int l2) {
   }
 }
 
-
+// 生成字节码
 static int luaK_code (FuncState *fs, Instruction i) {
   Proto *f = fs->f;
   dischargejpc(fs);  /* 'pc' will change */
   /* put new instruction in code array */
+  // 加入 code
   luaM_growvector(fs->ls->L, f->code, fs->pc, f->sizecode, Instruction,
                   MAX_INT, "opcodes");
   f->code[fs->pc] = i;
   /* save corresponding line information */
+  // line info of current code
   luaM_growvector(fs->ls->L, f->lineinfo, fs->pc, f->sizelineinfo, int,
                   MAX_INT, "opcodes");
   f->lineinfo[fs->pc] = fs->ls->lastline;
@@ -485,6 +487,7 @@ static void discharge2reg (FuncState *fs, expdesc *e, int reg) {
 }
 
 
+// 将表达式 e，放进 reg
 static void discharge2anyreg (FuncState *fs, expdesc *e) {
   if (e->k != VNONRELOC) {
     luaK_reserveregs(fs, 1);
@@ -704,6 +707,8 @@ static void codenot (FuncState *fs, expdesc *e) {
   luaK_dischargevars(fs, e);
   switch (e->k) {
 	// not nil, not false ==> true
+	// 若 e 是 VNIL VFALSE VK VFLT VKINT VTRUE
+	// 这些量，则直接进行转换
     case VNIL: case VFALSE: {
       e->k = VTRUE;
       break;
@@ -712,14 +717,17 @@ static void codenot (FuncState *fs, expdesc *e) {
       e->k = VFALSE;
       break;
     }
+    // 跳转
     case VJMP: {
       invertjump(fs, e);
       break;
     }
+	// 变量，需要生成字节码
     case VRELOCABLE:
     case VNONRELOC: {
       discharge2anyreg(fs, e);
       freeexp(fs, e);
+	  // info 指向获取这个表达式 字节码的地址
       e->u.info = luaK_codeABC(fs, OP_NOT, 0, e->u.info, 0);
       e->k = VRELOCABLE;
       break;

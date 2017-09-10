@@ -195,7 +195,7 @@ static void new_localvarliteral_ (LexState *ls, const char *name, size_t sz) {
 #define new_localvarliteral(ls,v) \
 	new_localvarliteral_(ls, "" v, (sizeof(v)/sizeof(char))-1)
 
-
+// 获取 id 为 i 的变量
 static LocVar *getlocvar (FuncState *fs, int i) {
   int idx = fs->ls->dyd->actvar.arr[fs->firstlocal + i].idx;
   lua_assert(idx < fs->nlocvars);
@@ -253,6 +253,7 @@ static int newupvalue (FuncState *fs, TString *name, expdesc *v) {
 }
 
 
+// 在 fs 中寻找 名为 n 的变量
 static int searchvar (FuncState *fs, TString *n) {
   int i;
   for (i = cast_int(fs->nactvar) - 1; i >= 0; i--) {
@@ -885,9 +886,11 @@ static void funcargs (LexState *ls, expdesc *f, int line) {
 ** =======================================================================
 */
 
-
+// 主要表达式
 static void primaryexp (LexState *ls, expdesc *v) {
   /* primaryexp -> NAME | '(' expr ')' */
+  // name 
+  // ( expr )
   switch (ls->t.token) {
     case '(': {
       int line = ls->linenumber;
@@ -911,6 +914,7 @@ static void primaryexp (LexState *ls, expdesc *v) {
 static void suffixedexp (LexState *ls, expdesc *v) {
   /* suffixedexp ->
        primaryexp { '.' NAME | '[' exp ']' | ':' NAME funcargs | funcargs } */
+  // a.name    a[name]  a:name(a,b,c)  a(a,b,c)
   FuncState *fs = ls->fs;
   int line = ls->linenumber;
   primaryexp(ls, v);
@@ -1573,14 +1577,18 @@ static void funcstat (LexState *ls, int line) {
 
 static void exprstat (LexState *ls) {
   /* stat -> func | assignment */
+  // 这个应该是 赋值表达式
   FuncState *fs = ls->fs;
   struct LHS_assign v;
+  // 添加后缀
   suffixedexp(ls, &v.v);
   if (ls->t.token == '=' || ls->t.token == ',') { /* stat -> assignment ? */
+	// 赋值表达式
     v.prev = NULL;
     assignment(ls, &v, 1);
   }
   else {  /* stat -> func */
+	// a func
     check_condition(ls, v.v.k == VCALL, "syntax error");
     SETARG_C(getcode(fs, &v.v), 1);  /* call statement uses no results */
   }
@@ -1592,11 +1600,13 @@ static void retstat (LexState *ls) {
   FuncState *fs = ls->fs;
   expdesc e;
   int first, nret;  /* registers with returned values */
+  // return ;
   if (block_follow(ls, 1) || ls->t.token == ';')
     first = nret = 0;  /* return no values */
   else {
 	// return exprlist
     nret = explist(ls, &e);  /* optional return values */
+	// call or vavarg 尚不清楚
     if (hasmultret(e.k)) {
       luaK_setmultret(fs, &e);
       if (e.k == VCALL && nret == 1) {  /* tail call? */
@@ -1607,15 +1617,19 @@ static void retstat (LexState *ls) {
       nret = LUA_MULTRET;  /* return all values */
     }
     else {
+	  // 寻常返回值
       if (nret == 1)  /* only one single value? */
+		// 一个返回值， 将 e 保存到reg
         first = luaK_exp2anyreg(fs, &e);
       else {
+		// 多个返回值，同样将 e 保存到ret
         luaK_exp2nextreg(fs, &e);  /* values must go to the stack */
         first = fs->nactvar;  /* return all active values */
         lua_assert(nret == fs->freereg - first);
       }
     }
   }
+  // 生成字节码，将 reg 中的 e 返回
   luaK_ret(fs, first, nret);
   testnext(ls, ';');  /* skip optional semicolon */
 }
